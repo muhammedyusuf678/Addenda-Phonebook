@@ -1,18 +1,15 @@
 const mongoose = require("mongoose");
 
-const ContactSchema = mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
-  email: {
-    type: String,
+const TempContactSchema = mongoose.Schema({
+  contact: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Contact",
     required: true,
   },
   status: {
     type: String,
     required: true,
-    enum: ["In Progress", "Completed"], //can be anyone
+    enum: ["Not Started", "In Progress", "Completed"], //can be anyone of these
   },
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -21,4 +18,4 @@ const ContactSchema = mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model("Contact", ContactSchema);
+module.exports = mongoose.model("TempContact", TempContactSchema);

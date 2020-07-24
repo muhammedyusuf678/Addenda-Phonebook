@@ -8,48 +8,37 @@ const { connectDB, closeDB } = require("../config/db");
 
 const { parentPort, workerData } = require("worker_threads");
 
-const dbConnection = connectDB(`worker thread:`);
+const { threadId } = workerData;
+const dbConnection = connectDB(`worker ${threadId}:`);
 
-// Main thread will send message to tell worker thread running in pool to execute
-parentPort.on("message", async (message) => {
-  if (message == "terminate") {
-    closeDB(mongoose, `worker thread:`);
-    console.log("terminating worker thread");
-    process.exit(0);
-  }
-  const savedUser = workerTask();
+workerTask(threadId);
 
-  // return the result to main thread.
-  parentPort.postMessage({ msg: "Successfully Completed", savedUser });
-});
-
-async function workerTask() {
+async function workerTask(threadId) {
   //Fetch the list of the users who already have this tempContact in their contacts
   console.log("worker: picking a temp contact");
   const tempContact = await getATempContact();
   console.log(tempContact);
-  if (tempContact != null) {
-    let usersWithContact = await getUsersWithContact(tempContact);
 
-    //Append list to the second_contacts list of the loggedIn User
-    usersWithContact.forEach((element) => {
-      //add to second contacts only if user not already there (maybe by another mutual contact)
-      if (!tempContact.user.second_contacts.includes(element._id)) {
-        tempContact.user.second_contacts.push(element._id);
-      }
-    });
+  let usersWithContact = await getUsersWithContact(tempContact);
 
-    let savedUser = await tempContact.user.save();
-    //mark the document status as completed
-    tempContact.status = "Completed";
-    await tempContact.save();
+  //Append list to the second_contacts list of the loggedIn User
+  usersWithContact.forEach((element) => {
+    //add to second contacts only if user not already there (maybe by another mutual contact)
+    if (!tempContact.user.second_contacts.includes(element._id)) {
+      tempContact.user.second_contacts.push(element._id);
+    }
+  });
 
-    console.log(savedUser);
+  let savedUser = await tempContact.user.save();
+  //mark the document status as completed
+  tempContact.status = "Completed";
+  await tempContact.save();
+  parentPort.postMessage({
+    status: "Completed",
+  });
+  console.log(savedUser);
 
-    return savedUser;
-  } else {
-    return { msg: "No temp contacts with status: Not Started" };
-  }
+  closeDB(mongoose, `worker ${threadId}:`);
 }
 
 async function getATempContact() {
@@ -71,7 +60,7 @@ async function getATempContact() {
 }
 
 async function getUsersWithContact(tempContact) {
-  console.log("in getUsersWithContact");
+  parentPort.postMessage("in getUsersWithContact");
   try {
     const aggregateResult = await User.aggregate([
       {

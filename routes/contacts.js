@@ -7,13 +7,15 @@ const authMiddleware = require("../middleware/auth");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const Contact = require("../models/Contact");
+const TempContact = require("../models/TempContact");
 
 //Get all of logged in users contacts.
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select("-password")
-      .populate("contacts");
+      .populate("contacts")
+      .populate("second_contacts", "-password -contacts -second_contacts -__v");
     res.json({
       contacts: user.contacts,
       second_contacts: user.second_contacts,
@@ -76,12 +78,23 @@ router.post(
         //save reference to existing contact document
         contactToSave = contact;
       }
+      //save contact to user
       user.contacts.push(contactToSave);
       user = await user.save();
 
-      res
-        .status(200)
-        .json({ message: "Contacted Added Successfully", contactToSave });
+      //create temp contact
+      const newTempContact = new TempContact({
+        contact: contactToSave,
+        user,
+        status: "Not Started",
+      });
+      const savedTempContact = await newTempContact.save();
+
+      res.status(200).json({
+        message: "Contacted Added Successfully",
+        savedContact: contactToSave,
+        savedTempContact,
+      });
     } catch (err) {
       console.error(err.message);
       res
@@ -93,13 +106,10 @@ router.post(
 
 //get all other users who have the same contact
 router.get("/test", authMiddleware, async (req, res) => {
-  // const contact_id = mongoose.Types.ObjectId(req.query.contactid);
-  let user = await User.findById(req.user.id).select("-password");
-  let contact = await Contact.findById(req.query.contactid);
   console.log("in main thread");
 
   //note: mongodb serializes user and contact objects retrieved when passing to worker thread
-  let worker1 = createWorker("worker1", user, contact);
+  let worker1 = createWorker("worker1");
 
   //Add error listener
   worker1.on("error", (err) => {
@@ -110,17 +120,12 @@ router.get("/test", authMiddleware, async (req, res) => {
   worker1.on("message", (msg) => {
     console.log("message from worker");
     console.log(msg);
-    // res.status(200).json(msg);
-
-    // if (msg.status == "Completed") {
-    //   res.status(200).json(msg);
-    // }
   });
 });
 
-function createWorker(id, user, contact) {
+function createWorker(threadId) {
   const worker = new Worker("./lib/worker.js", {
-    workerData: { id, user, contact },
+    workerData: { threadId },
   });
 
   return worker;
