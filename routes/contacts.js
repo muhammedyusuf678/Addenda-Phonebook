@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { check, validationResult } = require("express-validator");
-
+const { Worker } = require("worker_threads");
 const authMiddleware = require("../middleware/auth");
 
 const mongoose = require("mongoose");
@@ -93,91 +93,37 @@ router.post(
 
 //get all other users who have the same contact
 router.get("/test", authMiddleware, async (req, res) => {
-  const contact_id = mongoose.Types.ObjectId(req.query.contactid);
-  try {
-    const aggregateResult = await User.aggregate([
-      {
-        $project: {
-          name: "$name",
-          email: "$email",
-          hasContact: {
-            $in: [contact_id, "$contacts"],
-          },
-        },
-      },
-    ]);
+  // const contact_id = mongoose.Types.ObjectId(req.query.contactid);
+  let user = await User.findById(req.user.id).select("-password");
+  let contact = await Contact.findById(req.query.contactid);
+  console.log("in main thread");
 
-    //filter out the other users who have the same contact
-    const usersWithContact = aggregateResult.filter(function (el) {
-      return el.hasContact == true && el._id != req.user.id;
-    });
-    // console.log(aggregateResult);
-    res.json(usersWithContact);
-  } catch (err) {
-    console.error(err.message);
-    res
-      .status(500)
-      .json({ msg: "Server Error in retrieving contacts from database" });
-  }
+  //note: mongodb serializes user and contact objects retrieved when passing to worker thread
+  let worker1 = createWorker("worker1", user, contact);
+
+  //Add error listener
+  worker1.on("error", (err) => {
+    console.error(`main thread: error from worker thread: ${err.message}`);
+    throw err;
+  });
+  //add message listener
+  worker1.on("message", (msg) => {
+    console.log("message from worker");
+    console.log(msg);
+    // res.status(200).json(msg);
+
+    // if (msg.status == "Completed") {
+    //   res.status(200).json(msg);
+    // }
+  });
 });
 
-//Update Contact
-// router.put("/:id", authMiddleware, async (req, res) => {
-//   const { name, email, phone, type } = req.body;
+function createWorker(id, user, contact) {
+  const worker = new Worker("./lib/worker.js", {
+    workerData: { id, user, contact },
+  });
 
-//   //Build a contact object with whichever fields were changed
-//   const contactFields = {};
-//   if (name) contactFields.name = name;
-//   if (email) contactFields.email = email;
-//   if (phone) contactFields.phone = phone;
-//   if (type) contactFields.type = type;
-
-//   try {
-//     //find contact you want to update
-//     let contact = await Contact.findById(req.params.id);
-//     if (!contact) {
-//       return res.status(404).json({ msg: "Contact not found" });
-//     }
-
-//     //Make sure user owns contact (no hack by postman or curl http client)
-//     //contact.user is mongo object not string
-//     if (contact.user.toString() !== req.user.id) {
-//       return res.status(401).json({ msg: "Not Authorized" });
-//     }
-
-//     contact = await Contact.findByIdAndUpdate(
-//       req.params.id,
-//       { $set: contactFields },
-//       { new: true }
-//     ); //if contact doesnt exist, create it
-//     res.json(contact);
-//   } catch (err) {
-//     console.error(err.message);
-//     res.status(500).send("Server Message");
-//   }
-// });
-
-//Delete Contact
-// router.delete("/:id", authMiddleware, async (req, res) => {
-//   try {
-//     //find contact you want to update
-//     let contact = await Contact.findById(req.params.id);
-//     if (!contact) {
-//       return res.status(404).json({ msg: "Contact not found" });
-//     }
-
-//     //Make sure user owns contact (no hack by postman or curl http client)
-//     //contact.user is mongo object not string
-//     if (contact.user.toString() !== req.user.id) {
-//       return res.status(401).json({ msg: "Not Authorized" });
-//     }
-
-//     await Contact.findByIdAndRemove(req.params.id);
-//     res.json({ msg: "Contact Removed" });
-//   } catch (err) {
-//     console.error(err.message);
-//     res.status(500).send("Server Message");
-//   }
-// });
+  return worker;
+}
 
 module.exports = router;

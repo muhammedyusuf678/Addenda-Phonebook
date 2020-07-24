@@ -1,9 +1,9 @@
 const express = require("express");
-const connectDB = require("./config/db");
+const { connectDB, closeDB } = require("./config/db");
 const app = express();
 
 //Connect Database
-connectDB();
+connectDB("Main Thread:");
 
 //Init Middleware
 app.use(express.json({ extended: false }));
