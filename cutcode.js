@@ -15,6 +15,14 @@
   },
 },
 
+      // const user = await User.findById(req.user.id)
+      //   .select("-password")
+      //   .populate("contacts")
+      //   .populate(
+      //     "second_contacts",
+      //     "-password -contacts -second_contacts -__v"
+      //   )
+      //   .slice("contacts", sliceArr);
 
 check("name", "Please enter a valid name (only letters)").trim()
         .not()

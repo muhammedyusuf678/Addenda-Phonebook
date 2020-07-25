@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const config = require("config");
 
-//only for protected routes
+//decodes JWT token and puts decoded data into request
 module.exports = function (req, res, next) {
   //get token sent by client from header.
   const token = req.header("x-auth-token");
@@ -18,8 +18,9 @@ module.exports = function (req, res, next) {
     req.user = decoded.user;
     next();
   } catch (err) {
+    //Unauthorized status code
     res
       .status(401)
-      .json({ msg: "token is not a valid jwt token .. cannot be decrypted" });
+      .json({ msg: "Token is not a valid jwt token. cannot be decrypted" });
   }
 };
