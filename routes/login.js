@@ -3,7 +3,6 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const config = require("config");
-const { check, validationResult } = require("express-validator");
 
 const authMiddleware = require("../middleware/auth");
 const userValidator = require("../middleware/input_validation/users");
@@ -24,14 +23,8 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
-//Auth/login user and get jwt token
+//login user and get jwt token
 router.post("/", userValidator.validate("loginUser"), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    //bad request
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   const { email, password } = req.body;
   try {
     let user = await User.findOne({ email });

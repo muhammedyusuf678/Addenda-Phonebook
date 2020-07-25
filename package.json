@@ -25,5 +25,9 @@
     "mongoose": "^5.9.25",
     "node-worker-threads-pool": "^1.4.0",
     "worker-threads-pool": "^2.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^7.5.0",
+    "eslint-config-strongloop": "^2.1.0"
   }
 }

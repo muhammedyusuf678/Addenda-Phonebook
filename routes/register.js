@@ -3,18 +3,12 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const config = require("config");
-const { check, validationResult } = require("express-validator");
 
 const User = require("../models/User");
 const userValidator = require("../middleware/input_validation/users");
 
 //register a user
 router.post("/", userValidator.validate("registerUser"), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    //bad request
-    return res.status(400).json({ errors: errors.array() });
-  }
   const { name, email, password } = req.body;
   try {
     //check if there is an existing user with same email

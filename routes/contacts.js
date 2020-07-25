@@ -4,8 +4,6 @@ const router = express.Router();
 const authMiddleware = require("../middleware/auth");
 const contactValidator = require("../middleware/input_validation/contacts");
 
-const { validationResult } = require("express-validator");
-const { Worker } = require("worker_threads");
 const { workerPool, numOfThreads } = require("../lib/worker-thread-pool");
 
 const mongoose = require("mongoose");
@@ -13,22 +11,18 @@ const User = require("../models/User");
 const Contact = require("../models/Contact");
 const TempContact = require("../models/TempContact");
 
-//Get all of logged in users contacts.
+//Get all contacts of logged in user.
 router.get(
   "/",
   [authMiddleware, contactValidator.validate("getContacts")],
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      //bad request
-      return res.status(400).json({ errors: errors.array() });
-    }
     const {
       contactsPage,
       second_contactsPage,
       contactsLimit,
       second_contactsLimit,
     } = req.query;
+
     const contactsSkip = (contactsPage - 1) * contactsLimit;
     const second_contactsSkip =
       (second_contactsPage - 1) * second_contactsLimit;
@@ -106,14 +100,9 @@ router.post(
   "/",
   [authMiddleware, contactValidator.validate("createContact")],
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      //bad request
-      return res.status(400).json({ errors: errors.array() });
-    }
     const { name, email } = req.body;
     try {
-      let user = await User.findById(req.user.id).select("-password -__v");
+      let user = await User.findById(req.user.id).select("-password -__v"); //remove unwanted fields
       //check if there is an existing contact document with same email
       let contact = await Contact.findOne({ email }).select("-__v");
       let contactToSave;
@@ -192,40 +181,6 @@ async function onServerShutdown() {
     console.error(err.message);
     process.exit(0);
   }
-
-  // await workerPool.destroy();
-}
-
-// function () {
-//loop through pool
-//close all db connections
-// }
-
-//get all other users who have the same contact
-router.get("/test", authMiddleware, async (req, res) => {
-  console.log("in main thread");
-
-  //note: mongodb serializes user and contact objects retrieved when passing to worker thread
-  let worker1 = createWorker("worker1");
-
-  //Add error listener
-  worker1.on("error", (err) => {
-    console.error(`main thread: error from worker thread: ${err.message}`);
-    throw err;
-  });
-  //add message listener
-  worker1.on("message", (msg) => {
-    console.log("message from worker");
-    console.log(msg);
-  });
-});
-
-function createWorker(threadId) {
-  const worker = new Worker("./lib/worker.js", {
-    workerData: { threadId },
-  });
-
-  return worker;
 }
 
 module.exports = router;
