@@ -6,7 +6,7 @@ const contactValidator = require("../middleware/input_validation/contacts");
 
 const { validationResult } = require("express-validator");
 const { Worker } = require("worker_threads");
-const workerPool = require("../lib/worker-thread-pool");
+const { workerPool, numOfThreads } = require("../lib/worker-thread-pool");
 
 const mongoose = require("mongoose");
 const User = require("../models/User");
@@ -157,6 +157,9 @@ router.post(
 
       //This call will choose one idle worker in the pool to execute worker task
       //Defined in /lib
+      console.log(
+        "acquiring worker thread from pool to handle temp contact processing"
+      );
       const resultFromWorker = await workerPool.exec();
       console.log("Result from worker");
       console.log(resultFromWorker);
@@ -164,7 +167,7 @@ router.post(
       res.status(201).json({
         message: "Contact and associated second contacts added successfully",
         savedContact: contactToSave,
-        second_contactsAdded: resultFromWorker,
+        second_contactsAdded: JSON.parse(resultFromWorker.payload),
       });
     } catch (err) {
       console.error(err.message);
@@ -174,6 +177,29 @@ router.post(
     }
   }
 );
+
+process.on("SIGTERM", onServerShutdown);
+process.on("SIGINT", onServerShutdown);
+
+async function onServerShutdown() {
+  try {
+    for (let i = 0; i < numOfThreads; i++) {
+      workerPool.exec("terminate");
+    }
+    workerPool.destroy();
+    process.exit(0);
+  } catch (err) {
+    console.error(err.message);
+    process.exit(0);
+  }
+
+  // await workerPool.destroy();
+}
+
+// function () {
+//loop through pool
+//close all db connections
+// }
 
 //get all other users who have the same contact
 router.get("/test", authMiddleware, async (req, res) => {
