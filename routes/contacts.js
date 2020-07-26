@@ -14,7 +14,7 @@ const TempContact = require("../models/TempContact");
 //Get all contacts of logged in user.
 router.get(
   "/",
-  [authMiddleware, contactValidator.validate("getContacts")],
+  [contactValidator.validate("getContacts"), authMiddleware],
   async (req, res) => {
     const {
       contactsPage,
@@ -22,14 +22,15 @@ router.get(
       contactsLimit,
       second_contactsLimit,
     } = req.query;
-
+    //calulate number of records to skip based on page number and limit
     const contactsSkip = (contactsPage - 1) * contactsLimit;
     const second_contactsSkip =
       (second_contactsPage - 1) * second_contactsLimit;
 
     try {
+      //use aggregate query to get total number of contacts and second_contacts for user
       const aggregateResult = await User.aggregate([
-        { $match: { _id: mongoose.Types.ObjectId(req.user.id) } },
+        { $match: { _id: mongoose.Types.ObjectId(req.user._id) } },
         {
           $project: {
             contactsCount: { $size: "$contacts" },
@@ -37,8 +38,8 @@ router.get(
           },
         },
       ]);
-
-      const result = await User.findById(req.user.id)
+      //get user document and populate only the fields included in pagination
+      const result = await User.findById(req.user._id)
         .populate({
           path: "contacts",
           select: "-__v" /*remove unwanted fields */,
@@ -60,8 +61,16 @@ router.get(
             limit: second_contactsLimit,
           },
         });
+      //check if user with this id (decoded from JWT) does not exist
+      if (!result) {
+        //bad request
+        return res.status(400).json({
+          error: true,
+          message: "User with ID decoded from JWT does not exist",
+        });
+      }
 
-      //there will always be only one item in aggregateResult as mongo ID is unique
+      //calculate totalNumber of pages possible
       const contactsTotalPages = Math.ceil(
         aggregateResult[0].contactsCount / contactsLimit
       );
@@ -69,10 +78,8 @@ router.get(
         aggregateResult[0].second_contactsCount / second_contactsLimit
       );
 
-      // console.log(result);
-
       //serialize response to JSON and send
-      res.json({
+      res.status(200).json({
         contacts: result.contacts,
         second_contacts: result.second_contacts,
         contactsPagination: {
@@ -85,6 +92,7 @@ router.get(
           limit: second_contactsLimit,
           totalPages: second_contactsTotalPages,
         },
+        error: false,
       });
     } catch (err) {
       console.error(err.message);
@@ -98,11 +106,19 @@ router.get(
 //Create Contact for currently logged in user
 router.post(
   "/",
-  [authMiddleware, contactValidator.validate("createContact")],
+  [contactValidator.validate("createContact"), authMiddleware],
   async (req, res) => {
     const { name, email } = req.body;
     try {
-      let user = await User.findById(req.user.id).select("-password -__v"); //remove unwanted fields
+      let user = req.user; //retrieved from database in authMiddleware
+      //check if user with this id (decoded from JWT) does not exist
+      if (!user) {
+        //bad request
+        return res.status(400).json({
+          error: true,
+          message: "User with ID decoded from JWT does not exist",
+        });
+      }
       //check if there is an existing contact document with same email
       let contact = await Contact.findOne({ email }).select("-__v");
       let contactToSave;
@@ -121,17 +137,17 @@ router.post(
         console.log(
           "This contact exists in database. Adding reference to user"
         );
-        //check if user already has a contact with this unique email
+        //check if user already has a contact with this unique email. So no duplicates
         if (user.contacts.includes(contact._id)) {
           return res.status(200).json({
-            msg: "Contact with this email already exists",
+            message: "Contact with this email already exists for this user",
+            error: false,
             contact,
           });
         }
-        //save reference to existing contact document
         contactToSave = contact;
       }
-      //save contact to user
+      //add reference contact document to user
       user.contacts.push(contactToSave);
       user = await user.save();
 
@@ -153,16 +169,19 @@ router.post(
       console.log("Result from worker");
       console.log(resultFromWorker);
 
+      //serialize response with message, saved contact and new second_contacts added (returned by worker thread)
       res.status(201).json({
         message: "Contact and associated second contacts added successfully",
+        error: false,
         savedContact: contactToSave,
         second_contactsAdded: JSON.parse(resultFromWorker.payload),
       });
     } catch (err) {
       console.error(err.message);
-      res
-        .status(500)
-        .send("Server Error in creating contact and saving to database");
+      res.status(500).json({
+        message: "Server Error in creating contact and saving to database",
+        error: true,
+      });
     }
   }
 );

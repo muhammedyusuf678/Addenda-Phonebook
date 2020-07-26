@@ -3,6 +3,7 @@ const config = require("config");
 const db = config.get("mongoURI");
 const connectDB = async (source) => {
   try {
+    //connect to database
     mongoose.connect(db, {
       useNewUrlParser: true,
       useCreateIndex: true,
@@ -25,6 +26,7 @@ const connectDB = async (source) => {
 };
 
 const closeDB = async (mon) => {
+  //close database connection
   await mon.connection.close();
 };
 

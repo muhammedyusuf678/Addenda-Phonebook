@@ -7,6 +7,7 @@ connectDB("Main Thread");
 
 //Init Middleware
 app.use(express.json({ extended: false }));
+//set response content type
 app.use(function (req, res, next) {
   res.setHeader("Content-Type", "application/json");
   next();
@@ -17,8 +18,7 @@ app.use("/contacts", require("./routes/contacts"));
 app.use("/register", require("./routes/register"));
 app.use("/login", require("./routes/login"));
 
-// app.get("*", function (req, res) {});
-
+//Handling not found routes/endpoints
 app.use(function (req, res) {
   res.status(404).json({
     error: "Endpoint not found (404)",

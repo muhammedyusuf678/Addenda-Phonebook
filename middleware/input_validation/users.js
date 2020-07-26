@@ -7,6 +7,8 @@ module.exports.validate = (method) => {
         await check("email", "Please enter a valid email")
           .trim()
           .isEmail()
+          //sanitize
+          .normalizeEmail()
           .run(req);
         await check("password", "Password is required").exists().run(req);
         const errors = validationResult(req);
@@ -23,10 +25,22 @@ module.exports.validate = (method) => {
         await check("name", "Please enter a valid name (only letters)")
           .not()
           .isEmpty()
+          .bail()
+          .custom((value) => {
+            //regular expression for full name. First name mandatory, last name with 1 space optional. No numbers or special characters allowed
+            if (/^[a-zA-Z]{1,}(?: [a-zA-Z]+)$/.test(value)) {
+              return true;
+            } else
+              throw new Error(
+                "Please enter a valid name with no numbers or special characters. Max 1 whitespace in between first name and last name (optional)"
+              );
+          })
           .run(req);
         await check("email", "Please enter a valid email")
           .trim()
           .isEmail()
+          //sanitize
+          .normalizeEmail()
           .run(req);
         await check(
           "password",

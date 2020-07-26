@@ -24,7 +24,7 @@ const UserSchema = mongoose.Schema({
   second_contacts: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", //as per specification in the task email. Protected fields like second_contact's password and contacts are removed in backend
+      ref: "User", //as per requirement in the task email
       required: true,
     },
   ],

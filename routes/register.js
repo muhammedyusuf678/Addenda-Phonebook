@@ -14,7 +14,9 @@ router.post("/", userValidator.validate("registerUser"), async (req, res) => {
     //check if there is an existing user with same email
     let user = await User.findOne({ email });
     if (user) {
-      return res.status(400).json({ msg: "User already exists" });
+      return res
+        .status(400)
+        .json({ error: true, message: "User already exists" });
     }
     user = new User({
       name,
@@ -23,7 +25,7 @@ router.post("/", userValidator.validate("registerUser"), async (req, res) => {
       contacts: [],
       second_contacts: [],
     });
-
+    //hash the password and store hashed password in user document
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
 
@@ -34,6 +36,7 @@ router.post("/", userValidator.validate("registerUser"), async (req, res) => {
         id: user.id,
       },
     };
+    //create JWT token with user id
     jwt.sign(
       payload,
       config.get("jwtSecret"),
@@ -42,12 +45,14 @@ router.post("/", userValidator.validate("registerUser"), async (req, res) => {
       },
       (err, token) => {
         if (err) throw err;
-        res.json({ token });
+        res.status(200).json({ token, error: false });
       }
     );
   } catch (err) {
     console.error(err.message);
-    res.status(500).send("Server error"); //500 -> server error
+    res
+      .status(500)
+      .json({ error: true, message: `Server Error: ${err.message}` });
   }
 });
 

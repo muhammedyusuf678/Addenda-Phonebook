@@ -11,16 +11,17 @@ const User = require("../models/User");
 
 //get the currently logged in user from the jwt token data
 router.get("/", authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select(
-      "-password -__v -contacts -second_contacts"
-    ); //remove unwanted fields
-    //serialize to json and send response
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server Error");
-  }
+  //user document retrieved from database and added to req by authMiddleware
+
+  //serialize to json and send response
+  res.status(200).json({
+    user: {
+      _id: req.user._id,
+      name: req.user.name,
+      email: req.user.email,
+    },
+    error: false,
+  });
 });
 
 //login user and get jwt token
@@ -29,12 +30,14 @@ router.post("/", userValidator.validate("loginUser"), async (req, res) => {
   try {
     let user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ msg: "Incorrect Email" });
+      return res.status(400).json({ error: true, message: "Incorrect Email" });
     }
     //compare password to hashed password from db
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ msg: "Incorrect Password" });
+      return res
+        .status(400)
+        .json({ error: true, message: "Incorrect Password" });
     }
 
     const payload = {
@@ -42,6 +45,7 @@ router.post("/", userValidator.validate("loginUser"), async (req, res) => {
         id: user.id,
       },
     };
+    //create JWT token with user id
     jwt.sign(
       payload,
       config.get("jwtSecret"),
@@ -50,12 +54,14 @@ router.post("/", userValidator.validate("loginUser"), async (req, res) => {
       },
       (err, token) => {
         if (err) throw err;
-        res.json({ token });
+        res.status(200).json({ token, error: false });
       }
     );
   } catch (err) {
     console.error(err.message);
-    res.status(500).send("Server Error");
+    res
+      .status(500)
+      .json({ error: true, message: `Server Error: ${err.message}` });
   }
 });
 
